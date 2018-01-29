@@ -29,13 +29,53 @@ The config folder is a folder on your local drive that the packager will store t
 The ```configfile.name``` is the config file for the packager. It should be in the configfolder. An example will be provided below.
 The ```custom-version-tag``` is a string that will be added behind the rolling version number. We use the current git commit hash.
 
+## Command line switches
+| switch  | fullswitch | description | required |
+| ------- | ---------- | ----------- | -------- |
+| -a      | --azureStorage | Use Azure storage as config folder | Mutually exclusive with -l |
+| -n      | --storageAccountName | Storage account name | Required with -a |
+| -k      | --storageAccountKey | Storage account secret | Required with -a |
+| -c      | --storageAccountContainer | Azure Storage container to use | Required with -a |
+| -l      | --localStorage | Use a local folder as config foler | Mutually exclusive with -a |
+| -p      | --localStoragePath | The path to the config folder | Required with -l |
+| -f      | --configFileName | The filename of the config file | Required |
+| -s      | --solutionFile | The VS Solution fullpath that contains the SF App(s) | Required |
+| -b      | --buildConfiguration | What build config to build. Defaults to Release | |
+| -i      | --versionIdentifier | The version number/tag/string for this relelase | Required |
+| -e      | --secureCluster | If connecting to a secure cluster | |
+| -x      | --forcePackage | Forces the packager to ignore whats currently deployed, and just packages everything | |
+| -d      | --cleanOutput | Clean the output folder before packaging | |
+| -o      | --packageOutput | The output folder to put the packages in. Defaults to SOURCEPATH/sfpackaging | |
+| -v      | --verbose | More verbose output during packaging | |
+| -t      | --extraArgs | Extra args to pass through to dotnet publish | |
+
 ## Config file example
 ```
 {
   "Cluster": {
     "Endpoint": "localhost",
-    "Port": 19080
+    "Port": 19080,
+    "PfxFile": "file.pfx",
+    "PfxKey": "mysupersecretpfxkey"
   },
+  "HashIncludeExtensions": [
+    ".dll",
+    ".exe",
+    ".config"
+  ],
+  "HashSpecificExcludes": [
+    "nondeterministic.dll"
+  ],
+  "GuestExecutables": [
+    {
+      "PackageName": "MyGuestPackage",
+      "ApplicationTypeName": "MyGuestType",
+      "GuestRunAs": {
+        "UserName": "MyUser",
+        "AccountType": "LocalSystem"
+      }
+    }
+  ],
   "ExternalIncludes": [
     {
       "ApplicationTypeName": "AppTypeName",
@@ -46,7 +86,21 @@ The ```custom-version-tag``` is a string that will be added behind the rolling v
       "Source": "notused"
     }
   ],
+  "Enchipherment": [
+    {
+      "ApplicationTypeName": "MyApp",
+      "Name": "MyService",
+      "CertName": "MyEnchipherCert",
+      "CertThumbprint": "CA11FE..."
+    }
+  ],
   "Https": [
+    {
+      "ApplicationTypeName": "ApiType",
+      "ServiceManifestName": "ServiceName",
+      "EndpointName": "ServiceEndpointHttps",
+      "CertThumbprint": "10FEA0..."
+    }
   ],
   "Endpoints": [
     {
@@ -56,14 +110,43 @@ The ```custom-version-tag``` is a string that will be added behind the rolling v
       "Port": 80,
       "Protocol": "http",
       "Type": "Input"
+    },
+    {
+      "ApplicationTypeName": "ApiType",
+      "ServiceManifestName": "ServiceName",
+      "EndpointName": "ServiceEndpointHttps",
+      "Port": 443,
+      "Protocol": "https",
+      "Type": "Input"
     }
   ]
 }
 ```
 
-ExternalIncludes are files to copy in from your configfolder to a sub package during the packaging process.
-Endpoints is what endpoints to configure during packaging.
-Https is what certs to configure during packaging. Example of this will be provided later.
+## Description of the elements in config.json
+### Cluster
+Basic information about the cluster you are pulling deployed apps data from. `PfxFile` and `PfxKey` is only needed if connecting to a secured cluster.
+
+### HashIncludeExtensions
+What extensions to include when computing the hash of your code packages
+
+### HashSpecificExcludes
+Specific file(s) you want excluded during hashing because i.e. they are not deterministic. An example would be resource files.
+
+### GuestExecutables
+For defining guest executables. Should be pretty self-explanatory based on the example above.
+
+### ExternalIncludes
+Files that are kept out of repo but should be copied in during packaging. These will be hased and included in the version docuemnt along side all other files
+
+### Enchipherment
+Used for defining enchipherment certificate. This will then be added to the correct ApplicationManifest during packaing. This requires the certificates to already be deployed on the nodes (for example through VMSS ARM).
+
+### Https
+Defines the HTTPS certificates. This requires the certificates to already be deployed on the nodes (for example through VMSS ARM).
+
+### Endpoints
+Defines endpoints to be configured in ServiceManifests
 
 ## Actual useful information
 ### Tracking changes
